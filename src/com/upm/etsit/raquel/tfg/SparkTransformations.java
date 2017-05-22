@@ -127,51 +127,46 @@ public class SparkTransformations {
 		*/
 	
 
-		JavaPairRDD<String, Integer> text = userRDD.mapToPair(new PairFunction<Tweet, String, Integer>() {
-			public Tuple2<String, Integer> call(Tweet t) {
+		JavaPairRDD<String, Double> text = userRDD.mapToPair(new PairFunction<Tweet, String, Double>() {
+			public Tuple2<String, Double> call(Tweet t) {
 
-				int score = 0;
+				Double score = 0.0;
 				score = getScore(t.getText(), positivas, negativas);		
-				return new Tuple2<String, Integer>(t.getText(), score);
+				return new Tuple2<String,Double>(t.getText(),score);
 			}
 		});
 
 		text.foreach(data -> {
-			System.out.println(data._2);    
+			SparkTransformations.showOutput(data);
 		});
 
 	}
 
 
-
+	public static synchronized void showOutput(Tuple2<String,Double> data){
+		System.out.println("Tweet: " + data._1 + " scored as: " + data._2);
+	}
 
 	// Metodo para saber si un texto es Negativo o Positivo
 
-	public static int getScore(String inputStr, List<String> positivo, List<String> negativo) {
+	public static Double getScore(String inputStr, List<String> positivo, List<String> negativo) {
 
-		int score = 0;
+		double score = 0;
 		//int neutral_words = 0;
-		int total_score = 0;
+		double total_score = 0;
 
 		List<String> words = Arrays.asList(inputStr.split(" "));
 
 		for(int i=0; i<words.size() ; i++){
-			for( int j=0; j< positivo.size() ; j++){
-				if (  words.get(i).equals(positivo.get(j)) ){
-					score=score+1;
+				if ( positivo.contains(words.get(i)) ){
+					score=score + 1.0;
 				}
-			}
-		}
-		
-		for(int i=0; i<words.size() ; i++){
-			for( int j=0; j< negativo.size() ; j++){
-				if (  words.get(i).equals(negativo.get(j)) ){
-					score=score-1;
+				else if ( negativo.contains(words.get(i)) ){
+					score=score - 1.0;
 				}
-			}
 		}
 
-		total_score = score/words.size();
+		total_score = score/(double) words.size();
 		
 		return total_score;
 
