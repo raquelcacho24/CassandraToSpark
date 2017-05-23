@@ -45,7 +45,8 @@ public class SparkTransformations {
 		JavaRDD<Tweet> userRDD = cassandraRDD.map(new Function<CassandraRow, Tweet>() {
 
 			public Tweet call(CassandraRow row) throws Exception {
-				Tweet tweet = new Tweet(row.getDate("date"),row.getString("name"), row.getString("text"),row.getInt("retweets"),row.getString("country"));
+
+				Tweet tweet = new Tweet(row.getLong("id"), row.getDate("date"),row.getString("name"), row.getString("text"),row.getInt("retweets"),row.getString("country"));
 				return tweet;
 			}
 		});
@@ -128,20 +129,53 @@ public class SparkTransformations {
         }
 		 */
 
-		/*
-		JavaPairRDD<String, Double> text = userRDD.mapToPair(new PairFunction<Tweet, String, Double>() {
-			public Tuple2<String, Double> call(Tweet t) {
+		// 	Asignación de puntuación negativo/positivo del sentimiento del texto de un Tweet
 
-				Double score = 0.0;
-				score = getScore(t.getText(), positivas, negativas);		
-				return new Tuple2<String,Double>(t.getText(),score);
+		//	Primero implementación haciendo reduce con el id_tweet --> genera tabla id_tweet | score
+
+
+		/*JavaPairRDD<Long, Double> text = userRDD.flatMap(new FlatMapFunction<Tweet, Tuple2<Long,String>>() {
+
+			@Override
+			public Iterator<Tuple2<Long,String>> call(Tweet t) {
+				List<Tuple2<Long,String>> list = new ArrayList<Tuple2<Long,String>>();
+				String[] words = t.getText().split(" ");
+				for(int i=0;i<words.length;i++)
+					list.add(new Tuple2<Long,String>(t.getId(),words[i]));
+				return list.iterator();
 			}
-		});
+		}).mapToPair(new PairFunction<Tuple2<Long,String>,Long,Double>(){
+
+			@Override
+			public Tuple2<Long, Double> call(Tuple2<Long, String> arg0){
+				return new Tuple2<Long,Double>(arg0._1,getScore(arg0._2, positivas, negativas));
+			}
+
+		}).groupByKey().
+
+				mapToPair(new PairFunction<Tuple2<Long,Iterable<Double>>,Long,Double>(){
+
+					@Override
+					public Tuple2<Long, Double> call(Tuple2<Long, Iterable<Double>> arg0) throws Exception {
+						Iterator<Double> it = arg0._2.iterator();
+						double final_score = 0.0;
+						int i=0;
+						while(it.hasNext()){
+							final_score+= it.next();
+							i++;
+						}
+						return new Tuple2<Long,Double>(arg0._1,final_score/i);
+					}
+
+				});
+
 
 		text.foreach(data -> {
 			SparkTransformations.showOutput(data);
 		});*/
 
+		//	Misma implementación pero haciendo reduce con el text_tweet--> genera tabla text_tweet | score
+		// Implementación solo para ver los resultados, no debe ser la que genere una tabla para QlikView
 
 		JavaPairRDD<String, Double> text = userRDD.flatMap(new FlatMapFunction<Tweet, Tuple2<String,String>>() {
 
@@ -182,7 +216,6 @@ public class SparkTransformations {
 		text.foreach(data -> {
 			SparkTransformations.showOutput(data);
 		});
-
 
 
 
