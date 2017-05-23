@@ -6,12 +6,14 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.api.java.function.FlatMapFunction;
 import org.apache.spark.api.java.function.Function;
 import org.apache.spark.api.java.function.PairFunction;
 
@@ -115,18 +117,18 @@ public class SparkTransformations {
 
 		// Experimento
 
-	
+
 
 		List<String> positivas = loadPositiveWords();
 		List<String> negativas = loadNegativeWords();
-		
-		
+
+
 		/*for(int i = 0; i < negativas.size(); i++) {
             System.out.println(negativas.get(i));
         }
-		*/
-	
+		 */
 
+		/*
 		JavaPairRDD<String, Double> text = userRDD.mapToPair(new PairFunction<Tweet, String, Double>() {
 			public Tuple2<String, Double> call(Tweet t) {
 
@@ -138,9 +140,56 @@ public class SparkTransformations {
 
 		text.foreach(data -> {
 			SparkTransformations.showOutput(data);
+		});*/
+
+
+		JavaPairRDD<String, Double> text = userRDD.flatMap(new FlatMapFunction<Tweet, Tuple2<String,String>>() {
+
+			@Override
+			public Iterator<Tuple2<String,String>> call(Tweet t) {
+				List<Tuple2<String,String>> list = new ArrayList<Tuple2<String,String>>();
+				String[] words = t.getText().split(" ");
+				for(int i=0;i<words.length;i++)
+					list.add(new Tuple2<String,String>(t.getText(),words[i]));
+				return list.iterator();
+			}
+		}).mapToPair(new PairFunction<Tuple2<String,String>,String,Double>(){
+
+			@Override
+			public Tuple2<String, Double> call(Tuple2<String, String> arg0){
+				return new Tuple2<String,Double>(arg0._1,getScore(arg0._2, positivas, negativas));
+			}
+
+		}).groupByKey().
+
+				mapToPair(new PairFunction<Tuple2<String,Iterable<Double>>,String,Double>(){
+
+					@Override
+					public Tuple2<String, Double> call(Tuple2<String, Iterable<Double>> arg0) throws Exception {
+						Iterator<Double> it = arg0._2.iterator();
+						double final_score = 0.0;
+						int i=0;
+						while(it.hasNext()){
+							final_score+= it.next();
+							i++;
+						}
+						return new Tuple2<String,Double>(arg0._1,final_score/i);
+					}
+
+				});
+
+
+		text.foreach(data -> {
+			SparkTransformations.showOutput(data);
 		});
 
+
+
+
+
+
 	}
+
 
 
 	public static synchronized void showOutput(Tuple2<String,Double> data){
@@ -152,25 +201,17 @@ public class SparkTransformations {
 	public static Double getScore(String inputStr, List<String> positivo, List<String> negativo) {
 
 		double score = 0;
-		//int neutral_words = 0;
-		double total_score = 0;
 
-		List<String> words = Arrays.asList(inputStr.split(" "));
-
-		for(int i=0; i<words.size() ; i++){
-				if ( positivo.contains(words.get(i)) ){
-					score=score + 1.0;
-				}
-				else if ( negativo.contains(words.get(i)) ){
-					score=score - 1.0;
-				}
+		if ( positivo.contains(inputStr) ){
+			score=score + 1.0;
+		}
+		else if ( negativo.contains(inputStr) ){
+			score=score - 1.0;
 		}
 
-		total_score = score/(double) words.size();
-		
-		return total_score;
 
-		
+		return score;
+
 
 	}
 
@@ -191,7 +232,7 @@ public class SparkTransformations {
 			br = new BufferedReader(new FileReader(csvFile));
 			while ((line = br.readLine()) != null) {
 				positivas.add(line.toLowerCase());
-				
+
 			}
 
 		} catch (FileNotFoundException e) {
@@ -211,7 +252,7 @@ public class SparkTransformations {
 		return positivas;
 
 	}
-	
+
 	public static List<String> loadNegativeWords(){
 
 		String csvFile = "neg_excel.csv";
@@ -223,7 +264,7 @@ public class SparkTransformations {
 			br = new BufferedReader(new FileReader(csvFile));
 			while ((line = br.readLine()) != null) {
 				negativas.add(line.toLowerCase());
-				
+
 			}
 
 		} catch (FileNotFoundException e) {
