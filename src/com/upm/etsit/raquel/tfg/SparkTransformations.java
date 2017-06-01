@@ -38,6 +38,16 @@ public class SparkTransformations {
 
 		String keySpaceName = "twitterkeyspace";
 		String tableName = "tweets";
+		String path = "total";
+		String path1 = "manchester";
+		String path2 = "football";
+		String path3 = "score";
+		String path4 = "resultado";
+		String path5 = "resultado2";
+		String path6 = "resultado3";
+
+
+
 
 
 		CassandraJavaRDD<CassandraRow> cassandraRDD = CassandraJavaUtil.javaFunctions(jscc).cassandraTable(keySpaceName, tableName);
@@ -46,14 +56,34 @@ public class SparkTransformations {
 
 			public Tweet call(CassandraRow row) throws Exception {
 
-				Tweet tweet = new Tweet(row.getLong("id"), row.getDate("date"),row.getString("name"), row.getString("text"),row.getInt("retweets"),row.getString("country"));
+				Tweet tweet = new Tweet(row.getLong("id"), row.getDate("date"),row.getString("name"), row.getString("text"),row.getInt("retweets"),row.getString("country"), row.getString("hashtags"));
 				return tweet;
+			}
+		});
+
+		JavaPairRDD<Long,List<String>> datos = userRDD.mapToPair(new PairFunction<Tweet,Long,List<String>>(){
+
+			public Tuple2<Long, List<String>> call(Tweet t){
+				List<String> datos = new ArrayList<String>();
+				datos.add(t.getDate().toString());
+				datos.add(t.getText().replaceAll(",", " ").replaceAll("\n\r"," ").replaceAll("\n"," "));
+				datos.add(t.getName().replaceAll(",", " ").replaceAll("\n\r"," ").replaceAll("\n"," "));
+				//datos.add(t.getRetweets());
+				datos.add(t.getCountry());
+				datos.add(t.getHashtags());
+
+
+				return new Tuple2<Long,List<String>>(t.getId(),datos);
 			}
 		});
 
 		//Número total de Tweets a analizar (Nos servirá para luego hacer porcentajes)
 
-		long total_tweets = userRDD.count();
+		System.out.println("Total tweets"+ userRDD.count());
+		//datos.map(x -> x._1 + "," + (x._2.toString()).replaceAll("[\\[\\]]", "")).repartition(1).saveAsTextFile(path);
+
+
+
 
 		/*userRDD.foreach(data -> {
             System.out.println(data.getText());    
@@ -65,60 +95,102 @@ public class SparkTransformations {
 
 		/*JavaRDD<String> filtered_text_palabra = userRDD.filter(new Function<Tweet, Boolean>() {
 
-			public Boolean call(Tweet t) throws Exception {
+			 			public Boolean call(Tweet t) throws Exception {
 
-				if (t.getText().contains("España")) {
-					return true;
-				} else {
-					return false;
+			 				if (t.getText().contains("España")) {
+			 					return true;
+			 				} else {
+			 					return false;
+			 				}
+			 			}
+			 		}).map(new Function<Tweet, String>() {
+			 			public String call(Tweet t) {
+
+			 				return t.getText();
+			 			}
+			 		});*/
+
+
+
+
+
+
+		JavaPairRDD<Long,String> filtered_text_palabra = userRDD.mapToPair(new PairFunction<Tweet,Long,String>(){
+
+			public Tuple2<Long, String> call(Tweet t){
+				String resultado;
+				if (t.getText().toLowerCase().contains("manchester") || t.getHashtags().toLowerCase().contains("manchester")){
+					resultado="SI";
+				}else{
+					resultado="NO";
 				}
-			}
-		}).map(new Function<Tweet, String>() {
-			public String call(Tweet t) {
-
-				return t.getText();
+				return new Tuple2<Long,String>(t.getId(),resultado);
 			}
 		});
 
+
+		/*
 		filtered_text_palabra.foreach(data -> {
 			System.out.println(data);    
-		});
+		});*/
 
-		System.out.println(filtered_text_palabra.count());
-		 */
+		System.out.println("Manchester terrorism tweets Analyzed" + filtered_text_palabra.count());
+		//filtered_text_palabra.repartition(1).saveAsTextFile(path1); 
+		//filtered_text_palabra.map(x -> x._1 + "," + x._2).repartition(1).saveAsTextFile(path1);
 
 
-		// Número de Tweets que hablan sobre un determinado tema: Por ejemplo comida
 
-		/*List<String> comer = Arrays.asList("cena", "comida", "hambre", "aproveche","food","sushi","hamburguesa");
+		// Número de Tweets que hablan sobre un determinado tema: Por ejemplo fútbol
 
-		JavaRDD<String> filtered_text_comida = userRDD.filter(new Function<Tweet, Boolean>() {
+		String[] football_words = {"soccer", "football", "cristiano", "messi","champions","bench","championship","goal","goalkeeper","derby","penalty","league","Leicester","bayern","juventus","FCB","Real Madrid"};
 
-			public Boolean call(Tweet t) throws Exception {
 
-				if (stringContainsItemFromList(t.getText(),comer)) {
+		/*JavaRDD<String> filtered_text_football = userRDD.filter(new Function<Tweet, Boolean>() {
+
+ 			public Boolean call(Tweet t) throws Exception {
+
+ 				if (stringContainsItemFromList(t.getText(),football_words)) {
 					return true;
 				} else {
 					return false;
 				}
-			}
-		}).map(new Function<Tweet, String>() {
-			public String call(Tweet t) {
+ 			}
+ 		}).map(new Function<Tweet, String>() {
+ 			public String call(Tweet t) {
 
-				return t.getText();
+ 				return t.getText();
+ 			}
+ 		});*/
+
+
+
+
+		JavaPairRDD<Long,String> filtered_text_football = userRDD.mapToPair(new PairFunction<Tweet,Long,String>(){
+			public Tuple2<Long, String> call(Tweet t){
+				String resultado;
+
+				if (stringContainsItemFromList(t.getText().toLowerCase(),football_words) || stringContainsItemFromList(t.getHashtags().toLowerCase(),football_words)) {
+					resultado="SI";
+				} else {
+					resultado="NO";
+				}
+
+				return new Tuple2<Long,String>(t.getId(),resultado);
 			}
 		});
 
-		filtered_text_comida.foreach(data -> {
-			System.out.println(data);    
-		});
+		/*filtered_text_football.foreach(data -> {
+		System.out.println(data);    
+		});*/
 
-		System.out.println(filtered_text_comida.count());
-		 */
+		System.out.println("Football tweets analyzed"+ filtered_text_football.count());
 
-		// Experimento
+		//filtered_text_palabra.repartition(1).saveAsTextFile(path2); 
+		//filtered_text_football.map(x -> x._1 + "," + x._2).repartition(1).saveAsTextFile(path2);
 
 
+
+		// 	Asignación de puntuación negativo/positivo del sentimiento del texto de un Tweet
 
 		List<String> positivas = loadPositiveWords();
 		List<String> negativas = loadNegativeWords();
@@ -129,12 +201,11 @@ public class SparkTransformations {
         }
 		 */
 
-		// 	Asignación de puntuación negativo/positivo del sentimiento del texto de un Tweet
 
-		//	Primero implementación haciendo reduce con el id_tweet --> genera tabla id_tweet | score
+		//	Implementación haciendo reduce con el id_tweet --> genera tabla id_tweet | score
 
 
-		/*JavaPairRDD<Long, Double> text = userRDD.flatMap(new FlatMapFunction<Tweet, Tuple2<Long,String>>() {
+		JavaPairRDD<Long, Double> scored_tweets = userRDD.flatMap(new FlatMapFunction<Tweet, Tuple2<Long,String>>() {
 
 			@Override
 			public Iterator<Tuple2<Long,String>> call(Tweet t) {
@@ -170,14 +241,20 @@ public class SparkTransformations {
 				});
 
 
-		text.foreach(data -> {
+		/*	text.foreach(data -> {
 			SparkTransformations.showOutput(data);
 		});*/
+
+		System.out.println("Scored tweets Analyzed"+ scored_tweets.count());
+
+		//scored_tweets.map(x -> x._1 + "," + x._2).repartition(1).saveAsTextFile(path3);
+
+		//scored_tweets.repartition(1).saveAsTextFile(path3);
 
 		//	Misma implementación pero haciendo reduce con el text_tweet--> genera tabla text_tweet | score
 		// Implementación solo para ver los resultados, no debe ser la que genere una tabla para QlikView
 
-		JavaPairRDD<String, Double> text = userRDD.flatMap(new FlatMapFunction<Tweet, Tuple2<String,String>>() {
+		/*JavaPairRDD<String, Double> text = userRDD.flatMap(new FlatMapFunction<Tweet, Tuple2<String,String>>() {
 
 			@Override
 			public Iterator<Tuple2<String,String>> call(Tweet t) {
@@ -217,8 +294,23 @@ public class SparkTransformations {
 			SparkTransformations.showOutput(data);
 		});
 
+		 */
+		
+		JavaPairRDD<Long, Tuple2<List<String>, String>> resultado1 = datos.join(filtered_text_football);
+		
+		resultado1.foreach(data -> {
+			System.out.println(data);;
+		});
+		
+		
+		resultado1.map(    x -> x._1 + ","  +   (  (x._2.toString()).replaceAll("[\\[\\]]", "").replaceAll("((\\)))", ""))   ).repartition(1).saveAsTextFile(path4);
 
-
+		JavaPairRDD<Long, Tuple2<Tuple2<List<String>, String>, String>> resultado2 = resultado1.join(filtered_text_palabra);
+		resultado2.map(    x -> x._1 + ","  +   (  (x._2.toString()).replaceAll("[\\[\\]]", "").replaceAll("((\\)))", ""))   ).repartition(1).saveAsTextFile(path5);
+		
+		JavaPairRDD<Long, Tuple2<Tuple2<Tuple2<List<String>, String>, String>, Double>> resultado3 = resultado2.join(scored_tweets);
+		resultado3.map(    x -> x._1 + ","  +   (  (x._2.toString()).replaceAll("[\\[\\]]", "").replaceAll("((\\)))", ""))   ).repartition(1).saveAsTextFile(path6);
+		//datos.map(x -> x._1 + "," + (x._2.toString()).replaceAll("[\\[\\]]", "")).repartition(1).saveAsTextFile(path);
 
 
 	}
@@ -256,7 +348,7 @@ public class SparkTransformations {
 
 	public static List<String> loadPositiveWords(){
 
-		String csvFile = "pos_excel.csv";
+		String csvFile = "positive-words.txt";
 		BufferedReader br = null;
 		String line = "";
 		List<String> positivas = new ArrayList<String>();
@@ -288,7 +380,7 @@ public class SparkTransformations {
 
 	public static List<String> loadNegativeWords(){
 
-		String csvFile = "neg_excel.csv";
+		String csvFile = "negative-words.txt";
 		BufferedReader br = null;
 		String line = "";
 		List<String> negativas = new ArrayList<String>();
