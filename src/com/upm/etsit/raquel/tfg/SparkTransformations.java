@@ -38,12 +38,6 @@ public class SparkTransformations {
 
 		String keySpaceName = "twitterkeyspace";
 		String tableName = "tweets";
-		/*String path = "total";
-		String path1 = "manchester";
-		String path2 = "football";
-		String path3 = "score";
-		String path4 = "resultado";
-		String path5 = "resultado2";*/
 		String path = "resultado";
 
 
